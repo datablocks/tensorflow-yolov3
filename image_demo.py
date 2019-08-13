@@ -18,9 +18,9 @@ import tensorflow as tf
 from PIL import Image
 
 return_elements = ["input/input_data:0", "pred_sbbox/concat_2:0", "pred_mbbox/concat_2:0", "pred_lbbox/concat_2:0"]
-pb_file         = "./yolov3_coco.pb"
-image_path      = "./docs/images/road.jpeg"
-num_classes     = 80
+pb_file         = "./yolov3_coco_flickr_lre_5e-7.pb"
+image_path      = "./docs/images/apple.jpg"#road.jpeg" bmw 
+num_classes     = 32
 input_size      = 416
 graph           = tf.Graph()
 
@@ -38,6 +38,10 @@ with tf.Session(graph=graph) as sess:
         [return_tensors[1], return_tensors[2], return_tensors[3]],
                 feed_dict={ return_tensors[0]: image_data})
 
+print(pred_sbbox.size)
+print(pred_mbbox.size)
+print(pred_lbbox.size)
+
 pred_bbox = np.concatenate([np.reshape(pred_sbbox, (-1, 5 + num_classes)),
                             np.reshape(pred_mbbox, (-1, 5 + num_classes)),
                             np.reshape(pred_lbbox, (-1, 5 + num_classes))], axis=0)
@@ -46,7 +50,9 @@ bboxes = utils.postprocess_boxes(pred_bbox, original_image_size, input_size, 0.3
 bboxes = utils.nms(bboxes, 0.45, method='nms')
 image = utils.draw_bbox(original_image, bboxes)
 image = Image.fromarray(image)
-image.show()
+
+#image.show()
+image.save( 'output.jpg', 'JPEG' )
 
 
 

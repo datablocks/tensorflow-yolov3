@@ -68,6 +68,8 @@ cur_to_org_dict = {}
 for index in range(org_weights_num):
     org_name, org_shape = org_weights_mess[index]
     cur_name, cur_shape = cur_weights_mess[index]
+    print(cur_shape)
+    print(org_shape)
     if cur_shape != org_shape:
         print(org_weights_mess[index])
         print(cur_weights_mess[index])

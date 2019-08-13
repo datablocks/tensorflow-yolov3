@@ -14,9 +14,14 @@
 
 import tensorflow as tf
 from core.yolov3 import YOLOV3
+from core.config import cfg
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--ckpt", help="input checkpoint file", default="yolov3_test_loss=2.1426.ckpt-lre_1e-7")
+flag = parser.parse_args()
 
-pb_file = "./yolov3_coco.pb"
-ckpt_file = "./checkpoint/yolov3_coco_demo.ckpt"
+pb_file = cfg.TRAIN.FREEZE_OUTPUT  # "./yolov3_coco_flickr_lre_1e-7.pb"
+ckpt_file = "./checkpoint/" + flag.ckpt #2.9426.ckpt-save1"#yolov3_test_loss=1.6498.ckpt-120"#yolov3_coco_demo.ckpt"
 output_node_names = ["input/input_data", "pred_sbbox/concat_2", "pred_mbbox/concat_2", "pred_lbbox/concat_2"]
 
 with tf.name_scope('input'):

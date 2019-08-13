@@ -10,7 +10,7 @@
 #   Description :
 #
 #================================================================
-
+import argparse
 import os
 import time
 import shutil
@@ -21,19 +21,29 @@ from tqdm import tqdm
 from core.dataset import Dataset
 from core.yolov3 import YOLOV3
 from core.config import cfg
+parser = argparse.ArgumentParser()
+# parser.add_argument("--checkpoint", help="pass in checkpoint optionally", default="yolov3_start_loss.ckpt")#yolov3_coco_demo.ckpt")#action='store_true')
+parser.add_argument("--first", type=int, help="number of First Stage Epochs", default=cfg.TRAIN.FIRST_STAGE_EPOCHS)
+parser.add_argument("--second", type=int, help="number of Second Stage Epochs", default=cfg.TRAIN.SECOND_STAGE_EPOCHS)
+# parser.add_argument("--classes", help="classes.names file location", default="./data/classes/classes_1.names")
+parser.add_argument("--nolog",  action='store_true')
+flag = parser.parse_args()
 
+# print(flag.second)
+# print("./checkpoint/" + flag.checkpoint)
+# exit()
 
 class YoloTrain(object):
     def __init__(self):
         self.anchor_per_scale    = cfg.YOLO.ANCHOR_PER_SCALE
-        self.classes             = utils.read_class_names(cfg.YOLO.CLASSES)
+        self.classes             = utils.read_class_names(cfg.YOLO.CLASSES)#flag.classes)#cfg.YOLO.CLASSES)
         self.num_classes         = len(self.classes)
         self.learn_rate_init     = cfg.TRAIN.LEARN_RATE_INIT
         self.learn_rate_end      = cfg.TRAIN.LEARN_RATE_END
-        self.first_stage_epochs  = cfg.TRAIN.FISRT_STAGE_EPOCHS
-        self.second_stage_epochs = cfg.TRAIN.SECOND_STAGE_EPOCHS
+        self.first_stage_epochs  = flag.first #cfg.TRAIN.FIRST_STAGE_EPOCHS
+        self.second_stage_epochs = flag.second #cfg.TRAIN.SECOND_STAGE_EPOCHS
         self.warmup_periods      = cfg.TRAIN.WARMUP_EPOCHS
-        self.initial_weight      = cfg.TRAIN.INITIAL_WEIGHT
+        self.initial_weight      = cfg.TRAIN.INITIAL_WEIGHT #"/tf/src/tensorflow-yolov3/checkpoint/" + flag.checkpoint #
         self.time                = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
         self.moving_ave_decay    = cfg.YOLO.MOVING_AVE_DECAY
         self.max_bbox_per_scale  = 150
@@ -70,9 +80,14 @@ class YoloTrain(object):
             self.learn_rate = tf.cond(
                 pred=self.global_step < warmup_steps,
                 true_fn=lambda: self.global_step / warmup_steps * self.learn_rate_init,
-                false_fn=lambda: self.learn_rate_end + 0.5 * (self.learn_rate_init - self.learn_rate_end) *
+                false_fn=lambda: self.learn_rate_end + .5 * (self.learn_rate_init - self.learn_rate_end) *
                                     (1 + tf.cos(
                                         (self.global_step - warmup_steps) / (train_steps - warmup_steps) * np.pi))
+                                    # (1 - tf.sin(
+                                    #     (self.global_step - warmup_steps) / (train_steps - warmup_steps) * np.pi / 2))
+
+                                    #+ tf.cos(
+                                        #(self.global_step - warmup_steps) / (train_steps - warmup_steps) * np.pi)
             )
             global_step_update = tf.assign_add(self.global_step, 1.0)
 
@@ -123,6 +138,9 @@ class YoloTrain(object):
 
 
     def train(self):
+        os.system("rm -f temphistory.txt")
+        os.system("rm -f traincomplete.txt")
+        os.system("touch traincomplete.txt")  # were going to watch this file until "complete" shows up in it
         self.sess.run(tf.global_variables_initializer())
         try:
             print('=> Restoring weights from: %s ... ' % self.initial_weight)
@@ -138,10 +156,14 @@ class YoloTrain(object):
             else:
                 train_op = self.train_op_with_all_variables
 
-            pbar = tqdm(self.trainset)
+            if flag.nolog:
+                pbar = self.trainset
+            else:
+                pbar = tqdm(self.trainset)
+            
             train_epoch_loss, test_epoch_loss = [], []
 
-            for train_data in pbar:
+            for train_data in pbar:#self.trainset:#pbar:
                 _, summary, train_step_loss, global_step_val = self.sess.run(
                     [train_op, self.write_op, self.loss, self.global_step],feed_dict={
                                                 self.input_data:   train_data[0],
@@ -156,7 +178,8 @@ class YoloTrain(object):
 
                 train_epoch_loss.append(train_step_loss)
                 self.summary_writer.add_summary(summary, global_step_val)
-                pbar.set_description("train loss: %.2f" %train_step_loss)
+                if not flag.nolog:
+                    pbar.set_description("train loss: %.2f" %train_step_loss)
 
             for test_data in self.testset:
                 test_step_loss = self.sess.run( self.loss, feed_dict={
@@ -172,12 +195,18 @@ class YoloTrain(object):
 
                 test_epoch_loss.append(test_step_loss)
 
-            train_epoch_loss, test_epoch_loss = np.mean(train_epoch_loss), np.mean(test_epoch_loss)
+            os.system("date >> temphistory.txt")
+            os.system("nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader >> temphistory.txt")
+            
+            train_epoch_loss, test_epoch_loss = np.mean(train_epoch_loss), np.mean(test_epoch_loss)  #Fix this with np.nanmean
+            os.system("echo \"" + str(test_epoch_loss) + "\" >> temphistory.txt")
             ckpt_file = "./checkpoint/yolov3_test_loss=%.4f.ckpt" % test_epoch_loss
             log_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-            print("=> Epoch: %2d Time: %s Train loss: %.2f Test loss: %.2f Saving %s ..."
+            if not flag.nolog:
+                print("=> Epoch: %2d Time: %s Train loss: %.2f Test loss: %.2f Saving %s ..."
                             %(epoch, log_time, train_epoch_loss, test_epoch_loss, ckpt_file))
             self.saver.save(self.sess, ckpt_file, global_step=epoch)
+        os.system("echo \"complete\" >> traincomplete.txt")
 
 
 
