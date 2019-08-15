@@ -32,7 +32,7 @@ app = Flask(__name__)
 
 
 return_elements = ["input/input_data:0", "pred_sbbox/concat_2:0", "pred_mbbox/concat_2:0", "pred_lbbox/concat_2:0"]
-pb_file         = "./" + flag.frozen #"./yolov3_coco_flickr_lre_1e-7.pb"#yolov3_coco_flickr_lre_5e-7_2.pb"
+pb_file         = "./frozen/" + flag.frozen #"./yolov3_coco_flickr_lre_1e-7.pb"#yolov3_coco_flickr_lre_5e-7_2.pb"
 video_path      = "./docs/images/road.mp4"  #/home/andy/tensorjupyter/tensorflow-yolov3
 # video_path      = 0
 num_classes     = flag.classcount #32
